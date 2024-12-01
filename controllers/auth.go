@@ -944,12 +944,8 @@ func (c* ApiController) OneStepLogin() {
     if user, err = object.GetUserByFields(authForm.Organization, authForm.Phone); err != nil {
         c.ResponseError(err.Error(), nil)
         return
-    } else if user == nil {
-        c.ResponseError(fmt.Sprintf("The user: %s doesn't exist", util.GetId(authForm.Organization, authForm.Phone)))
-        return
     }
-
-    var application *object.Application
+	var application *object.Application
     application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
     if err != nil {
         c.ResponseError(err.Error(), nil)
@@ -965,6 +961,37 @@ func (c* ApiController) OneStepLogin() {
         c.ResponseError("The login method: login with SMS is not enabled for the application")
         return
     }
+	if user == nil {
+        if !application.EnableSignUp {
+            c.ResponseError(c.T("account:The application does not allow to sign up new account"))
+            return
+        }
+
+        user = &object.User{
+            Owner:       authForm.Organization,
+            Name:        authForm.Username,
+            CreatedTime: util.GetCurrentTime(),
+            Id:          util.GenerateId(),
+            Type:        "normal-user",
+            DisplayName: authForm.Username,
+            Email:       authForm.Email,
+            Phone:       authForm.Phone,
+            // 其他字段根据需要填写
+        }
+
+        var affected bool
+        affected, err = object.AddUser(user)
+        if err != nil {
+            c.ResponseError(err.Error())
+            return
+        }
+
+        if !affected {
+            c.ResponseError(fmt.Sprintf(c.T("auth:Failed to create user, user information is invalid: %s"), util.StructToJson(user)))
+            return
+        }
+    }
+
 
     authForm.CountryCode = user.GetCountryCode(authForm.CountryCode)
     var checkDest string
@@ -989,7 +1016,28 @@ func (c* ApiController) OneStepLogin() {
     }
 
     // 登录成功后的处理逻辑
-    // ...
+    var organization *object.Organization
+    organization, err = object.GetOrganizationByUser(user)
+    if err != nil {
+        c.ResponseError(err.Error())
+        return
+    }
+
+    if object.IsNeedPromptMfa(organization, user) {
+        // The prompt page needs the user to be signed in
+        c.SetSessionUsername(user.GetId())
+        c.ResponseOk(object.RequiredMfa)
+        return
+    }
+
+    if user.IsMfaEnabled() {
+        c.setMfaUserSession(user.GetId())
+        c.ResponseOk(object.NextMfa, user.GetPreferredMfaProps(true))
+        return
+    }
+
+    resp = c.HandleLoggedIn(application, user, &authForm)
+    c.Ctx.Input.SetParam("recordUserId", user.GetId())
 
     c.ResponseOk(resp)
 }
