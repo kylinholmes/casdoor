@@ -28,3 +28,11 @@ type TokenRequest struct {
 	Avatar       string `json:"avatar"`
 	RefreshToken string `json:"refresh_token"`
 }
+type SigninMethod string
+
+const (
+	Password SigninMethod = "Password"
+	LDAP     SigninMethod = "LDAP"
+	FaceID   SigninMethod = "Face ID"
+	
+)

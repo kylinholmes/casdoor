@@ -923,153 +923,76 @@ func (c *ApiController) Login() {
 	c.ServeJSON()
 }
 
-// OneStepLogin ...
-// @Title OneStepLogin
+// Login ...
+// @Title Login
 // @Tag Login API
-func (c *ApiController) OneStepLogin() {
+func (c* ApiController) OneStepLogin() {
+    resp := &Response{}
 
-	var authForm form.AuthForm
-	err := json.Unmarshal(c.Ctx.Input.RequestBody, &authForm)
-	if err != nil {
-		c.ResponseError(err.Error())
-		return
-	}
+    var authForm form.AuthForm
+    err := json.Unmarshal(c.Ctx.Input.RequestBody, &authForm)
+    if err != nil {
+        c.ResponseError(err.Error())
+        return
+    }
 
-	if authForm.Phone == "" || authForm.PhoneCode == "" {
-		c.ResponseError("Phone and code are required")
-		return
-	}
+    if authForm.Phone == "" || authForm.PhoneCode == "" {
+        c.ResponseError("Phone and code are required")
+        return
+    }
 
-	var application *object.Application
-	application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
-	if err != nil {
-		logs.Error(err.Error())
-		c.ResponseError(fmt.Sprintf("Failed to get application admin/%s", authForm.Application))
-		return
-	}
+    var user *object.User
+    if user, err = object.GetUserByFields(authForm.Organization, authForm.Phone); err != nil {
+        c.ResponseError(err.Error(), nil)
+        return
+    } else if user == nil {
+        c.ResponseError(fmt.Sprintf("The user: %s doesn't exist", util.GetId(authForm.Organization, authForm.Phone)))
+        return
+    }
 
-	if application == nil {
-		c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), authForm.Application))
-		return
-	}
+    var application *object.Application
+    application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
+    if err != nil {
+        c.ResponseError(err.Error(), nil)
+        return
+    }
 
-	if !application.IsCodeSigninViaSmsEnabled() {
-		c.ResponseError("The login method: login with SMS is not enabled for the application")
-		return
-	}
+    if application == nil {
+        c.ResponseError(fmt.Sprintf("The application: %s does not exist", authForm.Application))
+        return
+    }
 
-	user, _ := object.GetUserByFields(authForm.Organization, authForm.Phone)
-	if user == nil {
-		if !application.EnableSignUp {
-			c.ResponseError(c.T("account:The application does not allow to sign up new account"))
-			return
-		}
-		organization, err := object.GetOrganization(util.GetId("admin", authForm.Organization))
-		if err != nil {
-			c.ResponseError(c.T(err.Error()))
-			return
-		}
-		id, err := object.GenerateIdForNewUser(application)
-		if err != nil {
-			c.ResponseError(err.Error())
-			return
-		}
-		username := authForm.Username
-		if !application.IsSignupItemVisible("Username") {
-			if organization.UseEmailAsUsername && application.IsSignupItemVisible("Email") {
-				username = authForm.Email
-			} else {
-				username = id
-			}
-		}
+    if !application.IsCodeSigninViaSmsEnabled() {
+        c.ResponseError("The login method: login with SMS is not enabled for the application")
+        return
+    }
 
-		user := &object.User{
-			Owner:             authForm.Organization,
-			Name:              username,
-			CreatedTime:       util.GetCurrentTime(),
-			Id:                id,
-			Password:          authForm.Password,
-			DisplayName:       authForm.Name,
-			Gender:            authForm.Gender,
-			Bio:               authForm.Bio,
-			Tag:               authForm.Tag,
-			Education:         authForm.Education,
-			Avatar:            organization.DefaultAvatar,
-			Email:             authForm.Email,
-			Phone:             authForm.Phone,
-			CountryCode:       authForm.CountryCode,
-			Address:           []string{},
-			Affiliation:       authForm.Affiliation,
-			IdCard:            authForm.IdCard,
-			Region:            authForm.Region,
-			IsAdmin:           false,
-			IsForbidden:       false,
-			IsDeleted:         false,
-			SignupApplication: application.Name,
-			Properties:        map[string]string{},
-			Karma:             0,
-		}
+    authForm.CountryCode = user.GetCountryCode(authForm.CountryCode)
+    var checkDest string
+    var ok bool
+    if checkDest, ok = util.GetE164Number(authForm.Phone, authForm.CountryCode); !ok {
+        c.ResponseError(fmt.Sprintf("Phone number is invalid in your region %s", authForm.CountryCode))
+        return
+    }
 
-		var affected bool
-		affected, err = object.AddUser(user)
-		if err != nil {
-			c.ResponseError(fmt.Sprintf("Failed to create user: %s", err.Error()))
-			return
-		}
+    // check result through Phone
+    err = object.CheckSigninCode(user, checkDest, authForm.Code, c.GetAcceptLanguage())
+    if err != nil {
+        c.ResponseError(fmt.Sprintf("Phone - %s", err.Error()))
+        return
+    }
 
-		if !affected {
-			c.ResponseError(fmt.Sprintf(c.T("auth:Failed to create user, user information is invalid: %s"), util.StructToJson(user)))
-			return
-		}
-	}
+    // disable the verification code
+    err = object.DisableVerificationCode(checkDest)
+    if err != nil {
+        c.ResponseError(err.Error(), nil)
+        return
+    }
 
-	authForm.CountryCode = user.GetCountryCode(authForm.CountryCode)
-	var checkDest string
-	var ok bool
-	if checkDest, ok = util.GetE164Number(authForm.Phone, authForm.CountryCode); !ok {
-		c.ResponseError(fmt.Sprintf("Phone number is invalid in your region %s", authForm.CountryCode))
-		return
-	}
+    // 登录成功后的处理逻辑
+    // ...
 
-	// check result through Phone
-	err = object.CheckSigninCode(user, checkDest, authForm.Code, c.GetAcceptLanguage())
-	if err != nil {
-		c.ResponseError(fmt.Sprintf("Phone - %s", err.Error()))
-		return
-	}
-
-	// disable the verification code
-	err = object.DisableVerificationCode(checkDest)
-	if err != nil {
-		c.ResponseError(err.Error(), nil)
-		return
-	}
-
-	// 登录成功后的处理逻辑
-	// var organization *object.Organization
-	// organization, err = object.GetOrganizationByUser(user)
-	// if err != nil {
-	// c.ResponseError(err.Error())
-	// return
-	// }
-
-	// if object.IsNeedPromptMfa(organization, user) {
-	//     // The prompt page needs the user to be signed in
-	//     c.SetSessionUsername(user.GetId())
-	//     c.ResponseOk(object.RequiredMfa)
-	//     return
-	// }
-
-	// if user.IsMfaEnabled() {
-	//     c.setMfaUserSession(user.GetId())
-	//     c.ResponseOk(object.NextMfa, user.GetPreferredMfaProps(true))
-	//     return
-	// }
-	logs.Info("handle login")
-	resp := c.HandleLoggedIn(application, user, &authForm)
-	c.Ctx.Input.SetParam("recordUserId", user.GetId())
-
-	c.ResponseOk(resp)
+    c.ResponseOk(resp)
 }
 
 func (c *ApiController) GetSamlLogin() {
