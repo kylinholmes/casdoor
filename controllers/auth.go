@@ -922,6 +922,78 @@ func (c *ApiController) Login() {
 	c.ServeJSON()
 }
 
+// Login ...
+// @Title Login
+// @Tag Login API
+func (c* ApiController) OneStepLogin() {
+    resp := &Response{}
+
+    var authForm form.AuthForm
+    err := json.Unmarshal(c.Ctx.Input.RequestBody, &authForm)
+    if err != nil {
+        c.ResponseError(err.Error())
+        return
+    }
+
+    if authForm.Phone == "" || authForm.PhoneCode == "" {
+        c.ResponseError("Phone and code are required")
+        return
+    }
+
+    var user *object.User
+    if user, err = object.GetUserByFields(authForm.Organization, authForm.Phone); err != nil {
+        c.ResponseError(err.Error(), nil)
+        return
+    } else if user == nil {
+        c.ResponseError(fmt.Sprintf("The user: %s doesn't exist", util.GetId(authForm.Organization, authForm.Phone)))
+        return
+    }
+
+    var application *object.Application
+    application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
+    if err != nil {
+        c.ResponseError(err.Error(), nil)
+        return
+    }
+
+    if application == nil {
+        c.ResponseError(fmt.Sprintf("The application: %s does not exist", authForm.Application))
+        return
+    }
+
+    if !application.IsCodeSigninViaSmsEnabled() {
+        c.ResponseError("The login method: login with SMS is not enabled for the application")
+        return
+    }
+
+    authForm.CountryCode = user.GetCountryCode(authForm.CountryCode)
+    var checkDest string
+    var ok bool
+    if checkDest, ok = util.GetE164Number(authForm.Phone, authForm.CountryCode); !ok {
+        c.ResponseError(fmt.Sprintf("Phone number is invalid in your region %s", authForm.CountryCode))
+        return
+    }
+
+    // check result through Phone
+    err = object.CheckSigninCode(user, checkDest, authForm.Code, c.GetAcceptLanguage())
+    if err != nil {
+        c.ResponseError(fmt.Sprintf("Phone - %s", err.Error()))
+        return
+    }
+
+    // disable the verification code
+    err = object.DisableVerificationCode(checkDest)
+    if err != nil {
+        c.ResponseError(err.Error(), nil)
+        return
+    }
+
+    // 登录成功后的处理逻辑
+    // ...
+
+    c.ResponseOk(resp)
+}
+
 func (c *ApiController) GetSamlLogin() {
 	providerId := c.Input().Get("id")
 	relayState := c.Input().Get("relayState")
