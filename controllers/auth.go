@@ -940,11 +940,6 @@ func (c* ApiController) OneStepLogin() {
         return
     }
 
-    var user *object.User
-    if user, err = object.GetUserByFields(authForm.Organization, authForm.Phone); err != nil {
-        c.ResponseError(err.Error(), nil)
-        return
-    }
 	var application *object.Application
     application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
     if err != nil {
@@ -952,15 +947,12 @@ func (c* ApiController) OneStepLogin() {
         return
     }
 
-    if application == nil {
-        c.ResponseError(fmt.Sprintf("The application: %s does not exist", authForm.Application))
-        return
-    }
-
     if !application.IsCodeSigninViaSmsEnabled() {
         c.ResponseError("The login method: login with SMS is not enabled for the application")
         return
     }
+
+	user, _ := object.GetUserByFields(authForm.Organization, authForm.Phone);
 	if user == nil {
         if !application.EnableSignUp {
             c.ResponseError(c.T("account:The application does not allow to sign up new account"))
@@ -976,6 +968,7 @@ func (c* ApiController) OneStepLogin() {
             DisplayName: authForm.Username,
             Email:       authForm.Email,
             Phone:       authForm.Phone,
+			CountryCode: authForm.CountryCode,
             // 其他字段根据需要填写
         }
 
@@ -1016,25 +1009,25 @@ func (c* ApiController) OneStepLogin() {
     }
 
     // 登录成功后的处理逻辑
-    var organization *object.Organization
-    organization, err = object.GetOrganizationByUser(user)
-    if err != nil {
-        c.ResponseError(err.Error())
-        return
-    }
+    // var organization *object.Organization
+    // organization, err = object.GetOrganizationByUser(user)
+    // if err != nil {
+        // c.ResponseError(err.Error())
+        // return
+    // }
 
-    if object.IsNeedPromptMfa(organization, user) {
-        // The prompt page needs the user to be signed in
-        c.SetSessionUsername(user.GetId())
-        c.ResponseOk(object.RequiredMfa)
-        return
-    }
+    // if object.IsNeedPromptMfa(organization, user) {
+    //     // The prompt page needs the user to be signed in
+    //     c.SetSessionUsername(user.GetId())
+    //     c.ResponseOk(object.RequiredMfa)
+    //     return
+    // }
 
-    if user.IsMfaEnabled() {
-        c.setMfaUserSession(user.GetId())
-        c.ResponseOk(object.NextMfa, user.GetPreferredMfaProps(true))
-        return
-    }
+    // if user.IsMfaEnabled() {
+    //     c.setMfaUserSession(user.GetId())
+    //     c.ResponseOk(object.NextMfa, user.GetPreferredMfaProps(true))
+    //     return
+    // }
 
     resp = c.HandleLoggedIn(application, user, &authForm)
     c.Ctx.Input.SetParam("recordUserId", user.GetId())
