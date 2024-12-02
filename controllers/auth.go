@@ -948,6 +948,11 @@ func (c* ApiController) OneStepLogin() {
         return
     }
 
+	if application == nil {
+		c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), authForm.Application))
+		return
+	}
+
     if !application.IsCodeSigninViaSmsEnabled() {
         c.ResponseError("The login method: login with SMS is not enabled for the application")
         return
