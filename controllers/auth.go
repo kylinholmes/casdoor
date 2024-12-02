@@ -942,7 +942,6 @@ func (c* ApiController) OneStepLogin() {
 
 	var application *object.Application
     application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
-	logs.Info("application: %s, err: %s", application, err.Error())
     if err != nil {
 		logs.Error(err.Error())
         c.ResponseError(fmt.Sprintf("Failed to get application admin/%s", authForm.Application))
