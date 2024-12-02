@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/beego/beego/logs"
 	"github.com/casdoor/casdoor/captcha"
 	"github.com/casdoor/casdoor/conf"
 	"github.com/casdoor/casdoor/form"
@@ -922,11 +923,10 @@ func (c *ApiController) Login() {
 	c.ServeJSON()
 }
 
-// Login ...
-// @Title Login
+// OneStepLogin ...
+// @Title OneStepLogin
 // @Tag Login API
 func (c* ApiController) OneStepLogin() {
-    resp := &Response{}
 
     var authForm form.AuthForm
     err := json.Unmarshal(c.Ctx.Input.RequestBody, &authForm)
@@ -943,7 +943,8 @@ func (c* ApiController) OneStepLogin() {
 	var application *object.Application
     application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
     if err != nil {
-        c.ResponseError(err.Error(), nil)
+		logs.Error(err.Error())
+        c.ResponseError(fmt.Sprintf("Failed to get application admin/%s", authForm.Application))
         return
     }
 
@@ -1029,7 +1030,7 @@ func (c* ApiController) OneStepLogin() {
     //     return
     // }
 
-    resp = c.HandleLoggedIn(application, user, &authForm)
+	resp := c.HandleLoggedIn(application, user, &authForm)
     c.Ctx.Input.SetParam("recordUserId", user.GetId())
 
     c.ResponseOk(resp)
