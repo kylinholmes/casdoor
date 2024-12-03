@@ -964,19 +964,78 @@ func (c* ApiController) OneStepLogin() {
             c.ResponseError(c.T("account:The application does not allow to sign up new account"))
             return
         }
+		organization, err := object.GetOrganization(util.GetId("admin", authForm.Organization))
+		if err != nil {
+			c.ResponseError(c.T(err.Error()))
+			return
+		}
+		id, err := object.GenerateIdForNewUser(application)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+		username := authForm.Username
+		if !application.IsSignupItemVisible("Username") {
+			if organization.UseEmailAsUsername && application.IsSignupItemVisible("Email") {
+				username = authForm.Email
+			} else {
+				username = id
+			}
+		}
+		userType := "normal-user"
+		if authForm.Plan != "" && authForm.Pricing != "" {
+			err = object.CheckPricingAndPlan(authForm.Organization, authForm.Pricing, authForm.Plan)
+			if err != nil {
+				c.ResponseError(err.Error())
+				return
+			}
+			userType = "paid-user"
+		}
+		initScore, err := organization.GetInitScore()
+		if err != nil {
+			c.ResponseError(fmt.Errorf(c.T("account:Get init score failed, error: %w"), err).Error())
+			return
+		}
+		invitation, msg := object.CheckInvitationCode(application, organization, &authForm, c.GetAcceptLanguage())
+		if msg != "" {
+			c.ResponseError(msg)
+			return
+		}
+		invitationName := ""
+		if invitation != nil {
+			invitationName = invitation.Name
+		}
 
-        user = &object.User{
-            Owner:       authForm.Organization,
-            Name:        authForm.Username,
-            CreatedTime: util.GetCurrentTime(),
-            Id:          util.GenerateId(),
-            Type:        "normal-user",
-            DisplayName: authForm.Username,
-            Email:       authForm.Email,
-            Phone:       authForm.Phone,
-			CountryCode: authForm.CountryCode,
-            // 其他字段根据需要填写
-        }
+		user := &object.User{
+			Owner:             authForm.Organization,
+			Name:              username,
+			CreatedTime:       util.GetCurrentTime(),
+			Id:                id,
+			Type:              userType,
+			Password:          authForm.Password,
+			DisplayName:       authForm.Name,
+			Gender:            authForm.Gender,
+			Bio:               authForm.Bio,
+			Tag:               authForm.Tag,
+			Education:         authForm.Education,
+			Avatar:            organization.DefaultAvatar,
+			Email:             authForm.Email,
+			Phone:             authForm.Phone,
+			CountryCode:       authForm.CountryCode,
+			Address:           []string{},
+			Affiliation:       authForm.Affiliation,
+			IdCard:            authForm.IdCard,
+			Region:            authForm.Region,
+			Score:             initScore,
+			IsAdmin:           false,
+			IsForbidden:       false,
+			IsDeleted:         false,
+			SignupApplication: application.Name,
+			Properties:        map[string]string{},
+			Karma:             0,
+			Invitation:        invitationName,
+			InvitationCode:    authForm.InvitationCode,
+		}
 
         var affected bool
         affected, err = object.AddUser(user)
