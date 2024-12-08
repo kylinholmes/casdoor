@@ -1,4 +1,4 @@
-module github.com/kylinholmes/casdoor
+module github.com/casdoor/casdoor
 
 go 1.16
 
@@ -9,7 +9,7 @@ require (
 	github.com/beego/beego v1.12.12
 	github.com/beevik/etree v1.1.0
 	github.com/casbin/casbin/v2 v2.77.2
-	github.com/kylinholmes/casdoor v1.766.0
+	github.com/casdoor/casdoor v1.766.0
 	github.com/casdoor/go-sms-sender v0.25.0
 	github.com/casdoor/gomail/v2 v2.0.1
 	github.com/casdoor/ldapserver v1.2.0
