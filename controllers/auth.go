@@ -947,7 +947,6 @@ func (c *ApiController) OneStepLogin() {
 		c.ResponseError(fmt.Sprintf("Failed to get application admin/%s", authForm.Application))
 		return
 	}
-
 	if application == nil {
 		c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), authForm.Application))
 		return
@@ -1009,6 +1008,7 @@ func (c *ApiController) OneStepLogin() {
 			Properties:        map[string]string{},
 			Karma:             0,
 		}
+
 
 		var affected bool
 		affected, err = object.AddUser(user)
