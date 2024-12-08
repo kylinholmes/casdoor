@@ -101,6 +101,7 @@ p, *, *, GET, /api/get-all-roles, *, *
 p, *, *, GET, /api/run-casbin-command, *, *
 p, *, *, GET, /api/get-invitation-info, *, *
 p, *, *, GET, /api/faceid-signin-begin, *, *
+p, *, *, POST, /api/one-step-login, *, *
 `
 
 		sa := stringadapter.NewAdapter(ruleText)
