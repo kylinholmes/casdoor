@@ -926,44 +926,44 @@ func (c *ApiController) Login() {
 // OneStepLogin ...
 // @Title OneStepLogin
 // @Tag Login API
-func (c* ApiController) OneStepLogin() {
+func (c *ApiController) OneStepLogin() {
 
-    var authForm form.AuthForm
-    err := json.Unmarshal(c.Ctx.Input.RequestBody, &authForm)
-    if err != nil {
-        c.ResponseError(err.Error())
-        return
-    }
+	var authForm form.AuthForm
+	err := json.Unmarshal(c.Ctx.Input.RequestBody, &authForm)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
 
-    if authForm.Phone == "" || authForm.PhoneCode == "" {
-        c.ResponseError("Phone and code are required")
-        return
-    }
+	if authForm.Phone == "" || authForm.PhoneCode == "" {
+		c.ResponseError("Phone and code are required")
+		return
+	}
 
 	var application *object.Application
-    application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
-    if err != nil {
+	application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
+	if err != nil {
 		logs.Error(err.Error())
-        c.ResponseError(fmt.Sprintf("Failed to get application admin/%s", authForm.Application))
-        return
-    }
+		c.ResponseError(fmt.Sprintf("Failed to get application admin/%s", authForm.Application))
+		return
+	}
 
 	if application == nil {
 		c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), authForm.Application))
 		return
 	}
 
-    if !application.IsCodeSigninViaSmsEnabled() {
-        c.ResponseError("The login method: login with SMS is not enabled for the application")
-        return
-    }
+	if !application.IsCodeSigninViaSmsEnabled() {
+		c.ResponseError("The login method: login with SMS is not enabled for the application")
+		return
+	}
 
-	user, _ := object.GetUserByFields(authForm.Organization, authForm.Phone);
+	user, _ := object.GetUserByFields(authForm.Organization, authForm.Phone)
 	if user == nil {
-        if !application.EnableSignUp {
-            c.ResponseError(c.T("account:The application does not allow to sign up new account"))
-            return
-        }
+		if !application.EnableSignUp {
+			c.ResponseError(c.T("account:The application does not allow to sign up new account"))
+			return
+		}
 		organization, err := object.GetOrganization(util.GetId("admin", authForm.Organization))
 		if err != nil {
 			c.ResponseError(c.T(err.Error()))
@@ -1010,67 +1010,66 @@ func (c* ApiController) OneStepLogin() {
 			Karma:             0,
 		}
 
-        var affected bool
-        affected, err = object.AddUser(user)
-        if err != nil {
-            c.ResponseError(fmt.Sprintf("Failed to create user: %s", err.Error()))
-            return
-        }
+		var affected bool
+		affected, err = object.AddUser(user)
+		if err != nil {
+			c.ResponseError(fmt.Sprintf("Failed to create user: %s", err.Error()))
+			return
+		}
 
-        if !affected {
-            c.ResponseError(fmt.Sprintf(c.T("auth:Failed to create user, user information is invalid: %s"), util.StructToJson(user)))
-            return
-        }
-    }
+		if !affected {
+			c.ResponseError(fmt.Sprintf(c.T("auth:Failed to create user, user information is invalid: %s"), util.StructToJson(user)))
+			return
+		}
+	}
 
+	authForm.CountryCode = user.GetCountryCode(authForm.CountryCode)
+	var checkDest string
+	var ok bool
+	if checkDest, ok = util.GetE164Number(authForm.Phone, authForm.CountryCode); !ok {
+		c.ResponseError(fmt.Sprintf("Phone number is invalid in your region %s", authForm.CountryCode))
+		return
+	}
 
-    authForm.CountryCode = user.GetCountryCode(authForm.CountryCode)
-    var checkDest string
-    var ok bool
-    if checkDest, ok = util.GetE164Number(authForm.Phone, authForm.CountryCode); !ok {
-        c.ResponseError(fmt.Sprintf("Phone number is invalid in your region %s", authForm.CountryCode))
-        return
-    }
+	// check result through Phone
+	err = object.CheckSigninCode(user, checkDest, authForm.Code, c.GetAcceptLanguage())
+	if err != nil {
+		c.ResponseError(fmt.Sprintf("Phone - %s", err.Error()))
+		return
+	}
 
-    // check result through Phone
-    err = object.CheckSigninCode(user, checkDest, authForm.Code, c.GetAcceptLanguage())
-    if err != nil {
-        c.ResponseError(fmt.Sprintf("Phone - %s", err.Error()))
-        return
-    }
+	// disable the verification code
+	err = object.DisableVerificationCode(checkDest)
+	if err != nil {
+		c.ResponseError(err.Error(), nil)
+		return
+	}
 
-    // disable the verification code
-    err = object.DisableVerificationCode(checkDest)
-    if err != nil {
-        c.ResponseError(err.Error(), nil)
-        return
-    }
+	// 登录成功后的处理逻辑
+	// var organization *object.Organization
+	// organization, err = object.GetOrganizationByUser(user)
+	// if err != nil {
+	// c.ResponseError(err.Error())
+	// return
+	// }
 
-    // 登录成功后的处理逻辑
-    // var organization *object.Organization
-    // organization, err = object.GetOrganizationByUser(user)
-    // if err != nil {
-        // c.ResponseError(err.Error())
-        // return
-    // }
+	// if object.IsNeedPromptMfa(organization, user) {
+	//     // The prompt page needs the user to be signed in
+	//     c.SetSessionUsername(user.GetId())
+	//     c.ResponseOk(object.RequiredMfa)
+	//     return
+	// }
 
-    // if object.IsNeedPromptMfa(organization, user) {
-    //     // The prompt page needs the user to be signed in
-    //     c.SetSessionUsername(user.GetId())
-    //     c.ResponseOk(object.RequiredMfa)
-    //     return
-    // }
-
-    // if user.IsMfaEnabled() {
-    //     c.setMfaUserSession(user.GetId())
-    //     c.ResponseOk(object.NextMfa, user.GetPreferredMfaProps(true))
-    //     return
-    // }
+	// if user.IsMfaEnabled() {
+	//     c.setMfaUserSession(user.GetId())
+	//     c.ResponseOk(object.NextMfa, user.GetPreferredMfaProps(true))
+	//     return
+	// }
 	logs.Info("handle login")
 	resp := c.HandleLoggedIn(application, user, &authForm)
-    c.Ctx.Input.SetParam("recordUserId", user.GetId())
+	c.Ctx.Input.SetParam("recordUserId", user.GetId())
 
-    c.ResponseOk(resp)
+	c.ResponseOk(resp)
 }
 
 func (c *ApiController) GetSamlLogin() {
