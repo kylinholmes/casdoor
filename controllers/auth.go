@@ -982,36 +982,12 @@ func (c* ApiController) OneStepLogin() {
 				username = id
 			}
 		}
-		userType := "normal-user"
-		if authForm.Plan != "" && authForm.Pricing != "" {
-			err = object.CheckPricingAndPlan(authForm.Organization, authForm.Pricing, authForm.Plan)
-			if err != nil {
-				c.ResponseError(err.Error())
-				return
-			}
-			userType = "paid-user"
-		}
-		initScore, err := organization.GetInitScore()
-		if err != nil {
-			c.ResponseError(fmt.Errorf(c.T("account:Get init score failed, error: %w"), err).Error())
-			return
-		}
-		invitation, msg := object.CheckInvitationCode(application, organization, &authForm, c.GetAcceptLanguage())
-		if msg != "" {
-			c.ResponseError(msg)
-			return
-		}
-		invitationName := ""
-		if invitation != nil {
-			invitationName = invitation.Name
-		}
 
 		user := &object.User{
 			Owner:             authForm.Organization,
 			Name:              username,
 			CreatedTime:       util.GetCurrentTime(),
 			Id:                id,
-			Type:              userType,
 			Password:          authForm.Password,
 			DisplayName:       authForm.Name,
 			Gender:            authForm.Gender,
@@ -1026,15 +1002,12 @@ func (c* ApiController) OneStepLogin() {
 			Affiliation:       authForm.Affiliation,
 			IdCard:            authForm.IdCard,
 			Region:            authForm.Region,
-			Score:             initScore,
 			IsAdmin:           false,
 			IsForbidden:       false,
 			IsDeleted:         false,
 			SignupApplication: application.Name,
 			Properties:        map[string]string{},
 			Karma:             0,
-			Invitation:        invitationName,
-			InvitationCode:    authForm.InvitationCode,
 		}
 
         var affected bool
@@ -1093,7 +1066,7 @@ func (c* ApiController) OneStepLogin() {
     //     c.ResponseOk(object.NextMfa, user.GetPreferredMfaProps(true))
     //     return
     // }
-
+	logs.Info("handle login")
 	resp := c.HandleLoggedIn(application, user, &authForm)
     c.Ctx.Input.SetParam("recordUserId", user.GetId())
 
