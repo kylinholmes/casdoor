@@ -23,6 +23,7 @@ import (
 	"github.com/casdoor/casdoor/object"
 
 	"github.com/beego/beego/context"
+	"github.com/beego/beego/logs"
 	"github.com/casdoor/casdoor/authz"
 	"github.com/casdoor/casdoor/util"
 )
@@ -194,6 +195,7 @@ func ApiFilter(ctx *context.Context) {
 	if strings.HasPrefix(urlPath, "/api/notify-payment") {
 		urlPath = "/api/notify-payment"
 	}
+	logs.Info("ApiFilter: subOwner = %s, subName = %s, method = %s, urlPath = %s, objOwner = %s, objName = %s", subOwner, subName, method, urlPath, objOwner, objName)
 
 	isAllowed := authz.IsAllowed(subOwner, subName, method, urlPath, objOwner, objName)
 
