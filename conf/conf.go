@@ -110,3 +110,7 @@ func GetConfigBatchSize() int {
 	}
 	return res
 }
+
+func GetAvatarUrl() string {
+	return GetConfigString("avatarBaseUrl")
+}

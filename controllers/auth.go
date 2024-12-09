@@ -982,6 +982,11 @@ func (c *ApiController) OneStepLogin() {
 			}
 		}
 
+		avatar := util.GetRandomAvatar(username, conf.GetAvatarUrl())
+		if avatar == "" {
+			avatar = organization.DefaultAvatar
+		}
+
 		user := &object.User{
 			Owner:             authForm.Organization,
 			Name:              username,
@@ -993,7 +998,7 @@ func (c *ApiController) OneStepLogin() {
 			Bio:               authForm.Bio,
 			Tag:               authForm.Tag,
 			Education:         authForm.Education,
-			Avatar:            organization.DefaultAvatar,
+			Avatar:            avatar,
 			Email:             authForm.Email,
 			Phone:             authForm.Phone,
 			CountryCode:       authForm.CountryCode,
