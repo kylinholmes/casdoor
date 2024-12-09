@@ -957,7 +957,10 @@ func (c *ApiController) OneStepLogin() {
 		return
 	}
 
+
+	// 如果用户不存在，则可能需要 注册用户
 	user, _ := object.GetUserByFields(authForm.Organization, authForm.Phone)
+	registerFlag := false
 	if user == nil {
 		if !application.EnableSignUp {
 			c.ResponseError(c.T("account:The application does not allow to sign up new account"))
@@ -981,13 +984,16 @@ func (c *ApiController) OneStepLogin() {
 				username = id
 			}
 		}
+		if authForm.Name == "" {
+			authForm.Name = username
+		}
 
 		avatar := util.GetRandomAvatar(username, conf.GetAvatarUrl())
 		if avatar == "" {
 			avatar = organization.DefaultAvatar
 		}
 
-		user := &object.User{
+		user = &object.User{
 			Owner:             authForm.Organization,
 			Name:              username,
 			CreatedTime:       util.GetCurrentTime(),
@@ -1013,21 +1019,10 @@ func (c *ApiController) OneStepLogin() {
 			Properties:        map[string]string{},
 			Karma:             0,
 		}
-
-
-		var affected bool
-		affected, err = object.AddUser(user)
-		if err != nil {
-			c.ResponseError(fmt.Sprintf("Failed to create user: %s", err.Error()))
-			return
-		}
-
-		if !affected {
-			c.ResponseError(fmt.Sprintf(c.T("auth:Failed to create user, user information is invalid: %s"), util.StructToJson(user)))
-			return
-		}
+		registerFlag = true
 	}
 
+	// 验证手机号码
 	authForm.CountryCode = user.GetCountryCode(authForm.CountryCode)
 	var checkDest string
 	var ok bool
@@ -1048,6 +1043,21 @@ func (c *ApiController) OneStepLogin() {
 	if err != nil {
 		c.ResponseError(err.Error(), nil)
 		return
+	}
+
+	// 如果需要注册，则将用户信息写入数据库
+	if registerFlag {
+		var affected bool
+		affected, err = object.AddUser(user)
+		if err != nil {
+			c.ResponseError(fmt.Sprintf("Failed to create user: %s", err.Error()))
+			return
+		}
+
+		if !affected {
+			c.ResponseError(fmt.Sprintf(c.T("auth:Failed to create user, user information is invalid: %s"), util.StructToJson(user)))
+			return
+		}
 	}
 
 	// 登录成功后的处理逻辑
